@@ -764,8 +764,15 @@ def gmv_fill_color(value: float) -> str:
     return GMV_BANDS[-1][1]
 
 
-def minutes_to_decimal_hours(minutes: int) -> float:
-    return minutes / 60.0
+def minutes_to_time_text(minutes: int) -> str:
+    """Elapsed hours and minutes for GUI display, including durations over 24h."""
+    hours, remainder = divmod(max(0, minutes), 60)
+    return f"{hours:02d}:{remainder:02d}"
+
+
+def minutes_to_excel_time(minutes: int) -> float:
+    """Excel stores elapsed durations as fractions of a 24-hour day."""
+    return minutes / 1440.0
 
 
 def _first_monday_for_month(year: int, month: int) -> date:
@@ -841,7 +848,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
     fmt_hrs_header = workbook.add_format({"bold": True, "align": "center", "valign": "vcenter", "border": 1})
     fmt_week = workbook.add_format({"bold": True, "align": "left", "valign": "vcenter", "border": 1})
     fmt_week_money = workbook.add_format({"num_format": "$#,##0.00", "border": 1})
-    fmt_week_hours = workbook.add_format({"num_format": "0.00", "border": 1})
+    fmt_week_hours = workbook.add_format({"num_format": "[hh]:mm", "border": 1})
     fmt_day = workbook.add_format({"align": "center", "border": 1})
     fmt_date = workbook.add_format({"align": "center", "border": 1})
     fmt_blank = workbook.add_format({"border": 1})
@@ -849,7 +856,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
         color: workbook.add_format({"num_format": "$#,##0.00", "align": "right", "border": 1, "bg_color": color})
         for _, color in GMV_BANDS
     }
-    fmt_hours = workbook.add_format({"num_format": "0.00", "align": "center", "border": 1})
+    fmt_hours = workbook.add_format({"num_format": "[hh]:mm", "align": "center", "border": 1})
     fmt_section = workbook.add_format({"bold": True, "bg_color": "#D9EAF7", "border": 1})
     fmt_text = workbook.add_format({"border": 1})
     fmt_wrap = workbook.add_format({"border": 1, "text_wrap": True, "valign": "top"})
@@ -897,7 +904,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
                 weekly_gmv = sum(agg[(d, streamer)]["gmv"] for d in week_dates)
                 weekly_minutes = sum(agg[(d, streamer)]["minutes"] for d in week_dates)
                 ws.write_number(row_idx, sales_col, weekly_gmv, fmt_week_money)
-                ws.write_number(row_idx, sales_col + 1, minutes_to_decimal_hours(weekly_minutes), fmt_week_hours)
+                ws.write_number(row_idx, sales_col + 1, minutes_to_excel_time(weekly_minutes), fmt_week_hours)
 
             for day_offset, d in enumerate(week_dates, start=1):
                 rr = row_idx + day_offset
@@ -908,7 +915,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
                     item = agg[(d, streamer)]
                     if item["rooms"]:
                         ws.write_number(rr, sales_col, item["gmv"], fmt_money_by_color[gmv_fill_color(item["gmv"])])
-                        ws.write_number(rr, sales_col + 1, minutes_to_decimal_hours(item["minutes"]), fmt_hours)
+                        ws.write_number(rr, sales_col + 1, minutes_to_excel_time(item["minutes"]), fmt_hours)
                     else:
                         ws.write_blank(rr, sales_col, None, fmt_blank)
                         ws.write_blank(rr, sales_col + 1, None, fmt_blank)
@@ -926,7 +933,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
     ws.freeze_panes(1, 0)
     fixed_headers = [
         "Source File", "Room ID", "Room Title", "Start Time", "End Time", "Date",
-        "Duration Minutes", "Duration Hours", "Attributed GMV", "Streamer",
+        "Duration Minutes", "Duration (HH:MM)", "Attributed GMV", "Streamer",
         "Assignment Method", "Extracted Candidate",
     ]
     raw_headers = _raw_headers(report.rows)
@@ -955,7 +962,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
             ws.write_blank(r_idx, 4, None, fmt_text)
         ws.write(r_idx, 5, row.stream_date.isoformat(), fmt_text)
         ws.write_number(r_idx, 6, row.duration_minutes, fmt_integer)
-        ws.write_number(r_idx, 7, minutes_to_decimal_hours(row.duration_minutes), fmt_hours)
+        ws.write_number(r_idx, 7, minutes_to_excel_time(row.duration_minutes), fmt_hours)
         ws.write_number(r_idx, 8, row.gmv, fmt_money)
         ws.write(r_idx, 9, row.streamer or "", fmt_text)
         ws.write(r_idx, 10, row.assignment_method, fmt_text)
@@ -973,7 +980,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
         ("Duplicate rule", "Newest export copy wins for repeated Room IDs; tied export timestamps prefer the more complete row"),
         ("Streamer assignments", "100% complete before workbook generation"),
         ("Streamers", ", ".join(report.streamers)),
-        ("Hours format", "Decimal hours with 2 decimals (minutes / 60)"),
+        ("Hours format", "Elapsed HH:MM; Excel numeric durations use [hh]:mm (supports totals over 24 hours)"),
         ("Attribution policy", "Direct title evidence and saved user decisions only; no automatic chronology/schedule inheritance"),
         ("Inputs", "Raw TikTok CSV/XLSX live-performance exports"),
     ]
@@ -1214,7 +1221,7 @@ def launch_gui() -> None:
                 row.start_time.strftime("%Y-%m-%d"),
                 row.start_time.strftime("%I:%M %p").lstrip("0"),
                 row.end_time.strftime("%I:%M %p").lstrip("0") if row.end_time else "",
-                f"{minutes_to_decimal_hours(row.duration_minutes):.2f}",
+                minutes_to_time_text(row.duration_minutes),
                 f"${row.gmv:,.2f}",
                 row.room_title or "[BLANK TITLE]",
                 row.streamer or "",
@@ -1612,3 +1619,4 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
