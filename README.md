@@ -132,7 +132,7 @@ The output is a single `.xlsx` workbook, saved to the path you choose (GUI) or t
 
 | Sheet | Contents |
 |---|---|
-| One per month (for example `January`, or `January 2026` when the data spans more than one year) | A calendar grid with weeks running Monday to Sunday. Each streamer in the report has two columns: GMV and `Hrs`. Each week has a `Week N` row with weekly totals, then one row per day. The first and last weeks are full weeks, so they include days (and their GMV and hours) from the neighboring month. Those days appear on both month sheets, so don't add month-sheet totals together; use `Combined Data` for exact monthly sums. |
+| One per month (for example `January`, or `January 2026` when the data spans more than one year) | A calendar grid with weeks running Monday to Sunday. Each streamer in the report has two columns: GMV and `Hrs`. Each week has a `Week N` row with weekly totals, then one row per day. The first and last weeks are full Monday-to-Sunday weeks, so they show days from the neighboring month. Those days are greyed out with blank GMV and hours, and they aren't counted in that sheet's weekly totals, so each month sheet only totals its own month. |
 | `Combined Data` | One row per deduplicated stream, with an autofilter. |
 | `Run Info` | Row count after deduplication, duplicates removed, the duplicate rule, the list of streamers, the hours format and the attribution policy. |
 

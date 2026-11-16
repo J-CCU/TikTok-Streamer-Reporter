@@ -851,6 +851,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
     fmt_week_hours = workbook.add_format({"num_format": "[hh]:mm", "border": 1})
     fmt_day = workbook.add_format({"align": "center", "border": 1})
     fmt_date = workbook.add_format({"align": "center", "border": 1})
+    fmt_day_other_month = workbook.add_format({"align": "center", "border": 1, "font_color": "#BFBFBF"})
     fmt_blank = workbook.add_format({"border": 1})
     fmt_money_by_color = {
         color: workbook.add_format({"num_format": "$#,##0.00", "align": "right", "border": 1, "bg_color": color})
@@ -897,23 +898,27 @@ def write_excel(report: ReportData, output_path: Path) -> None:
         week_num = 1
         while current <= end:
             week_dates = [current + timedelta(days=d) for d in range(7)]
+            # Boundary days from neighboring months are shown dimmed and left
+            # out of this sheet's totals so months are never double-counted.
+            month_dates = [d for d in week_dates if (d.year, d.month) == (year, month)]
             ws.write(row_idx, 0, "", fmt_week)
             ws.write(row_idx, 1, f"Week {week_num}", fmt_week)
             for i, streamer in enumerate(report.streamers):
                 sales_col = 2 + i * 2
-                weekly_gmv = sum(agg[(d, streamer)]["gmv"] for d in week_dates)
-                weekly_minutes = sum(agg[(d, streamer)]["minutes"] for d in week_dates)
+                weekly_gmv = sum(agg[(d, streamer)]["gmv"] for d in month_dates)
+                weekly_minutes = sum(agg[(d, streamer)]["minutes"] for d in month_dates)
                 ws.write_number(row_idx, sales_col, weekly_gmv, fmt_week_money)
                 ws.write_number(row_idx, sales_col + 1, minutes_to_excel_time(weekly_minutes), fmt_week_hours)
 
             for day_offset, d in enumerate(week_dates, start=1):
                 rr = row_idx + day_offset
-                ws.write(rr, 0, d.strftime("%a"), fmt_day)
-                ws.write_number(rr, 1, d.day, fmt_date)
+                in_month = d in month_dates
+                ws.write(rr, 0, d.strftime("%a"), fmt_day if in_month else fmt_day_other_month)
+                ws.write_number(rr, 1, d.day, fmt_date if in_month else fmt_day_other_month)
                 for i, streamer in enumerate(report.streamers):
                     sales_col = 2 + i * 2
                     item = agg[(d, streamer)]
-                    if item["rooms"]:
+                    if in_month and item["rooms"]:
                         ws.write_number(rr, sales_col, item["gmv"], fmt_money_by_color[gmv_fill_color(item["gmv"])])
                         ws.write_number(rr, sales_col + 1, minutes_to_excel_time(item["minutes"]), fmt_hours)
                     else:
