@@ -11,7 +11,7 @@ The workflow is review-first. The app imports and deduplicates every live room, 
 3. Click **Add Exports...**, choose your TikTok LIVE `.csv` / `.xlsx` files, and fill in any empty **Streamer** cells.
 4. Click **Generate Excel Report** and choose where to save `TikTok_Streamer_Report.xlsx`.
 
-On an Apple Silicon Mac you can use the prebuilt app instead (see [Prebuilt app](#prebuilt-app-macos-apple-silicon)).
+Prebuilt apps aren't included right now; run the script with Python as above, or build the app yourself (see [Building the app with PyInstaller](#building-the-app-with-pyinstaller)).
 
 ## Features
 
@@ -46,14 +46,12 @@ python3 -m pip install XlsxWriter
 
 ## How to run
 
-### Prebuilt app (macOS, Apple Silicon)
+### Built app
 
-1. Unzip `TikTok Streamer Reporter.app.zip`.
-2. Open `TikTok Streamer Reporter.app`. If macOS blocks the unsigned app, right-click it and choose **Open**.
+1. Build the app yourself (see [Building the app with PyInstaller](#building-the-app-with-pyinstaller)).
+2. Open `TikTok Streamer Reporter.app` from `dist/` (macOS), or `TikTok Streamer Reporter.exe` from `dist\TikTok Streamer Reporter\` (Windows). If macOS blocks the unsigned app, right-click it and choose **Open**.
 
-`TikTok Streamer Reporter` (no extension) is the same program as a standalone arm64 Mac executable. You can run it from Terminal.
-
-The prebuilt binaries are for Apple Silicon Macs only. On Windows, Intel Macs or Linux, run from source (see the next section).
+A build runs only on the platform it was built on; a Mac build made on Apple Silicon runs only on arm64 Macs.
 
 ### From source
 
@@ -175,7 +173,7 @@ To change the built-in aliases or the streamer column order, edit the `KNOWN_ALI
 
 ## Building the app with PyInstaller
 
-The prebuilt app was made with PyInstaller as a windowed macOS `.app` bundle. No spec file is included; this command produces an equivalent build:
+The earlier prebuilt app was made with PyInstaller as a windowed macOS `.app` bundle. No spec file is included; this command produces an equivalent build:
 
 ```bash
 # macOS
@@ -208,14 +206,11 @@ PyInstaller doesn't cross-compile. Build the Windows version on Windows and the 
 | Two names for one person | Select a row with the name to replace, click **Rename / Merge Name...**, and enter the name you want to keep. |
 | GMV is lower than expected | The newest export wins for duplicate Room IDs. Check `Source File` in `Combined Data` to see which file each row came from. |
 | macOS says the app is damaged or from an unidentified developer | The app isn't notarized. Right-click it and choose **Open**, or allow it in System Settings > Privacy & Security. |
-| Prebuilt binary won't start on Windows or an Intel Mac | The included binaries are arm64 macOS only. Run from source or build the app on that platform. |
+| Built app won't start on another computer | A build runs only on the platform (and, for Macs, the chip type) it was built on. Run from source or build the app on that platform. |
 
 ## File guide
 
 | File | What it is |
 |---|---|
 | `tiktok_streamer_reporter.py` | Full source: GUI, CLI, import, deduplication, streamer detection and Excel writer |
-| `TikTok Streamer Reporter` | Prebuilt standalone macOS arm64 executable |
-| `TikTok Streamer Reporter.app.zip` | Prebuilt macOS app bundle, zipped |
-| `TikTok Streamer Zip.zip` | Older bundle containing `MAC TikTok Streamer Reporter.app` and a file named `WINDOWS TikTok Streamer Reporter`. The "WINDOWS" file is also a macOS arm64 executable, not a Windows `.exe`. Windows users should run from source. |
 | `README.md` | This document |
