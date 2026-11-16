@@ -119,11 +119,12 @@ Raw TikTok Shop LIVE export files, `.csv` or `.xlsx`.
   - `YYYY/MM/DD HH:MM:SS`
   - `MM/DD/YYYY HH:MM[:SS]`
   - `MM/DD/YYYY hh:mm[:ss] AM/PM`
-  - ISO 8601
+  - ISO 8601. Times with a time zone (`Z`, `+00:00`) are converted to this computer's local time.
   - Excel serial dates
-- **Duration formats:** `1h 23m 4s`, `HH:MM`, `HH:MM:SS`, or an Excel day fraction. If the duration is missing or can't be read, the app uses End Time minus Start Time.
+- **Duration formats:** `1h 23m 4s` (decimals such as `1.5h` work), `HH:MM`, `HH:MM:SS`, or an Excel day fraction. If the duration is missing or can't be read, the app uses End Time minus Start Time.
 - **GMV:** `$` signs and commas are removed. A value in parentheses is read as a negative number. A blank or unreadable value counts as 0.
 - **Skipped rows:** rows without a readable Start Time are skipped silently. If a row has no Room ID, the app creates one from the file name and row number.
+- **Room IDs:** numeric Room IDs in XLSX files (for example `7.42E+18`) are written as plain digits. Excel stores them as numbers, so IDs longer than 15-16 digits may already have lost their last digits; the CLI prints a warning when that happens. Store Room IDs as text, or use the CSV export, to keep them exact.
 - **Freshness:** if a file name contains a 14-digit `YYYYMMDDHHMMSS` timestamp starting with `20`, that timestamp sets the export's freshness for deduplication. Otherwise the file's modified time is used.
 
 ## Output

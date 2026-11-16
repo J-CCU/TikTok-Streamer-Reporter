@@ -334,7 +334,13 @@ def parse_datetime(value: str) -> Optional[datetime]:
         except ValueError:
             pass
     try:
-        return datetime.fromisoformat(value)
+        iso_value = value[:-1] + "+00:00" if value[-1:] in ("Z", "z") else value
+        parsed = datetime.fromisoformat(iso_value)
+        if parsed.tzinfo is not None:
+            # Keep every time naive local time so aware and naive rows can be
+            # sorted together and written to Excel.
+            parsed = parsed.astimezone().replace(tzinfo=None)
+        return parsed
     except ValueError:
         pass
 
@@ -365,13 +371,13 @@ def parse_duration_minutes(value: str, start: Optional[datetime], end: Optional[
     raw_value = _clean_cell(value)
     compact = raw_value.lower().replace(" ", "")
     if compact:
-        h = re.search(r"(\d+)h", compact)
-        m = re.search(r"(\d+)m", compact)
-        s = re.search(r"(\d+)s", compact)
+        h = re.search(r"(\d+(?:\.\d+)?)h", compact)
+        m = re.search(r"(\d+(?:\.\d+)?)m", compact)
+        s = re.search(r"(\d+(?:\.\d+)?)s", compact)
         if h or m or s:
-            total_seconds = (int(h.group(1)) if h else 0) * 3600
-            total_seconds += (int(m.group(1)) if m else 0) * 60
-            total_seconds += int(s.group(1)) if s else 0
+            total_seconds = (float(h.group(1)) if h else 0) * 3600
+            total_seconds += (float(m.group(1)) if m else 0) * 60
+            total_seconds += float(s.group(1)) if s else 0
             return max(0, round(total_seconds / 60))
         parts = compact.split(":")
         if all(p.isdigit() for p in parts) and len(parts) in (2, 3):
@@ -412,13 +418,36 @@ def _source_freshness(path: Path) -> float:
         return 0.0
 
 
+def _normalize_room_id(value: str, source_name: str = "") -> str:
+    """Turn spreadsheet numbers such as 7.42E+18 or 12345.0 into plain digits.
+
+    XLSX stores numeric cells as floats, so IDs above 2**53 may already have
+    lost precision; warn instead of silently pretending they are exact.
+    """
+    if not value or value.isdigit() or not re.fullmatch(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?", value):
+        return value
+    try:
+        number = float(value)
+    except ValueError:
+        return value
+    if number != number or number in (float("inf"), float("-inf")) or not number.is_integer():
+        return value
+    if abs(number) > 2 ** 53:
+        print(
+            f"Warning: {source_name or 'input'}: Room ID {value} was stored as a number and may have lost precision. "
+            "Export Room IDs as text to keep them exact.",
+            file=sys.stderr,
+        )
+    return str(int(number))
+
+
 def parse_file(path: Path) -> List[StreamRow]:
     headers, body = _read_input_rows(path)
     parsed: List[StreamRow] = []
     freshness = _source_freshness(path)
     for physical_row_num, raw_values in enumerate(body, start=1):
         raw = _row_to_dict(headers, raw_values)
-        room_id = _get_col(raw, "Room ID")
+        room_id = _normalize_room_id(_get_col(raw, "Room ID"), path.name)
         room_title = _get_col(raw, "Room Title")
         start = parse_datetime(_get_col(raw, "Start Time"))
         end = parse_datetime(_get_col(raw, "End Time"))
@@ -687,7 +716,8 @@ def build_report_data(paths: Sequence[Path], state: Optional[Dict[str, Any]] = N
         try:
             all_rows.extend(parse_file(path))
         except Exception as exc:
-            errors.append(f"{path.name}: {exc}")
+            message = str(exc)
+            errors.append(message if message.startswith(path.name) else f"{path.name}: {message}")
     if errors:
         raise ValueError("Could not import one or more files:\n\n" + "\n".join(errors))
     if not all_rows:
@@ -823,8 +853,9 @@ def _raw_headers(rows: Sequence[StreamRow]) -> List[str]:
     for row in rows:
         for header in row.raw:
             key = header.strip()
-            if key and key not in seen:
-                seen.add(key)
+            norm = _norm_header(key)
+            if key and norm not in seen:
+                seen.add(norm)
                 result.append(key)
     return result
 
@@ -889,7 +920,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
         ws.write(0, 1, "", fmt_streamer)
         for i, streamer in enumerate(report.streamers):
             sales_col = 2 + i * 2
-            ws.write(0, sales_col, streamer, fmt_streamer)
+            ws.write_string(0, sales_col, streamer, fmt_streamer)
             ws.write(0, sales_col + 1, "Hrs", fmt_hrs_header)
 
         current = _first_monday_for_month(year, month)
@@ -944,7 +975,7 @@ def write_excel(report: ReportData, output_path: Path) -> None:
     raw_headers = _raw_headers(report.rows)
     headers = fixed_headers + [f"Raw: {h}" for h in raw_headers]
     for c, h in enumerate(headers):
-        ws.write(0, c, h, fmt_section)
+        ws.write_string(0, c, h, fmt_section)
 
     ws.set_column(0, 0, 27)
     ws.set_column(1, 1, 22)
@@ -957,9 +988,9 @@ def write_excel(report: ReportData, output_path: Path) -> None:
         ws.set_column(len(fixed_headers), len(headers) - 1, 18)
 
     for r_idx, row in enumerate(report.rows, start=1):
-        ws.write(r_idx, 0, row.source_file, fmt_text)
-        ws.write(r_idx, 1, row.room_id, fmt_text)
-        ws.write(r_idx, 2, row.room_title, fmt_wrap)
+        ws.write_string(r_idx, 0, row.source_file, fmt_text)
+        ws.write_string(r_idx, 1, row.room_id, fmt_text)
+        ws.write_string(r_idx, 2, row.room_title, fmt_wrap)
         ws.write_datetime(r_idx, 3, row.start_time, fmt_datetime)
         if row.end_time:
             ws.write_datetime(r_idx, 4, row.end_time, fmt_datetime)
@@ -969,11 +1000,11 @@ def write_excel(report: ReportData, output_path: Path) -> None:
         ws.write_number(r_idx, 6, row.duration_minutes, fmt_integer)
         ws.write_number(r_idx, 7, minutes_to_excel_time(row.duration_minutes), fmt_hours)
         ws.write_number(r_idx, 8, row.gmv, fmt_money)
-        ws.write(r_idx, 9, row.streamer or "", fmt_text)
-        ws.write(r_idx, 10, row.assignment_method, fmt_text)
-        ws.write(r_idx, 11, row.extracted_candidate, fmt_text)
+        ws.write_string(r_idx, 9, row.streamer or "", fmt_text)
+        ws.write_string(r_idx, 10, row.assignment_method, fmt_text)
+        ws.write_string(r_idx, 11, row.extracted_candidate or "", fmt_text)
         for j, raw_header in enumerate(raw_headers, start=len(fixed_headers)):
-            ws.write(r_idx, j, row.raw.get(raw_header, ""), fmt_text)
+            ws.write_string(r_idx, j, _get_col(row.raw, raw_header), fmt_text)
     ws.autofilter(0, 0, len(report.rows), len(headers) - 1)
 
     ws = workbook.add_worksheet(_unique_sheet_name(existing_sheets, "Run Info"))
@@ -991,7 +1022,10 @@ def write_excel(report: ReportData, output_path: Path) -> None:
     ]
     for r, (label, value) in enumerate(info):
         ws.write(r, 0, label, fmt_section)
-        ws.write(r, 1, value, fmt_wrap)
+        if isinstance(value, str):
+            ws.write_string(r, 1, value, fmt_wrap)
+        else:
+            ws.write(r, 1, value, fmt_wrap)
 
     workbook.close()
 
