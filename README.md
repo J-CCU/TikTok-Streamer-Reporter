@@ -2,18 +2,27 @@
 
 A desktop tool that turns raw TikTok Shop LIVE performance exports (CSV or XLSX) into an Excel report of attributed GMV and streaming hours per streamer, by day, week and month.
 
-The workflow is review-first. The app imports and deduplicates every live room, prefills the streamer only when the room title gives clear evidence, and lets you assign or correct the rest in a table. You can't generate the report until every stream has a streamer.
+The workflow is review-first. The app imports and deduplicates every live room, prefills the streamer only when the room title gives clear evidence, and lets you assign or correct the rest in a table. You can't generate the report until every stream has a streamer. It is meant for TikTok Shop sellers who need per-host sales and hours totals from their LIVE exports.
+
+## Quick start
+
+1. Install Python 3.8+ with Tkinter, then `python3 -m pip install XlsxWriter` (Windows: `py -m pip install XlsxWriter`).
+2. Run `python3 tiktok_streamer_reporter.py` (Windows: `py tiktok_streamer_reporter.py`).
+3. Click **Add Exports...**, choose your TikTok LIVE `.csv` / `.xlsx` files, and fill in any empty **Streamer** cells.
+4. Click **Generate Excel Report** and choose where to save `TikTok_Streamer_Report.xlsx`.
+
+On an Apple Silicon Mac you can use the prebuilt app instead (see [Prebuilt app](#prebuilt-app-macos-apple-silicon)).
 
 ## Features
 
 - Imports one or more TikTok LIVE exports in `.csv` or `.xlsx` format. You can mix both formats in one run.
 - Finds the header row automatically within the first 100 rows of each file.
 - Deduplicates by Room ID. When a room appears in more than one export, the newest export wins. If the exports are equally recent, the row with more filled-in fields wins.
-- Prefills streamer names from title evidence only:
-  - built-in aliases (for example `darbz` maps to `Darby` and `ry` maps to `Ryann`)
-  - explicit host markers: `W/ <name>`, `WITH <name>`, `HOSTED BY <name>`, `HOST: <name>`
+- Prefills streamer names from title evidence only, in this order:
+  - a built-in alias (the `KNOWN_ALIASES` list in the source, which maps nicknames to display names). A title is matched only when exactly one known name appears in it.
+  - an explicit host marker followed by the name at the end of the title: `W/ <name>` (also `W.` or `W-`), `WITH <name>`, `HOSTED BY <name>`, `HOST: <name>` (also `HOST-`). The text after the marker is ignored if it contains a weekday or `?`, has more than three words, or starts with a word such as `sale`, `live` or `breaks`.
   - names learned from those markers and reused in other titles
-  - the narrow phrase `<Name> on a <weekday>`
+  - the narrow phrase `<Name> on a <weekday>` at the start of the title
 - Never guesses from schedules, time slots, or neighboring streams. Days with no streams are allowed and don't cause warnings.
 - Spreadsheet-style review table with filters (All rows, Needs streamer, Assigned), a per-file source filter and a text search.
 - Editing tools: double-click to edit one cell, bulk-assign selected rows, clear selected rows, copy the streamer from the previous or next stream in the same file, and Rename / Merge a name across all rows.
@@ -27,7 +36,7 @@ The workflow is review-first. The app imports and deduplicates every live room, 
 
 Reading input needs only the Python standard library. Pandas and openpyxl aren't required.
 
-```
+```bash
 # Windows
 py -m pip install XlsxWriter
 
@@ -48,7 +57,7 @@ The prebuilt binaries are for Apple Silicon Macs only. On Windows, Intel Macs or
 
 ### From source
 
-```
+```bash
 # Windows
 py tiktok_streamer_reporter.py
 
@@ -60,7 +69,7 @@ If you don't give any file arguments, the GUI opens.
 
 ### GUI workflow
 
-1. Click **Add Exports...** and pick one or more TikTok `.csv` / `.xlsx` files. The app imports them right away. Use **Remove Selected** or **Clear** to change the file list. The list is re-scanned after each change.
+1. Click **Add Exports...** and pick one or more TikTok `.csv` / `.xlsx` files. The app imports them right away. Use **Remove Selected** or **Clear** to change the file list. Adding or removing a file re-imports the whole list; assignments you made in this session are kept, because they are stored by Room ID.
 2. Read the summary line: number of files, unique rows, duplicates removed, rows assigned and rows still needing a streamer.
 3. Click **Show Needs Streamer**, or set **Show** to *Needs streamer*, to see the rows that still need a name.
 4. Assign streamers:
@@ -75,7 +84,7 @@ Press Cmd+F (macOS) or Ctrl+F to jump to the search box.
 
 ### Command line
 
-```
+```bash
 # Windows
 py tiktok_streamer_reporter.py export1.csv export2.xlsx -o TikTok_Streamer_Report.xlsx
 
@@ -115,7 +124,7 @@ Raw TikTok Shop LIVE export files, `.csv` or `.xlsx`.
 - **Duration formats:** `1h 23m 4s`, `HH:MM`, `HH:MM:SS`, or an Excel day fraction. If the duration is missing or can't be read, the app uses End Time minus Start Time.
 - **GMV:** `$` signs and commas are removed. A value in parentheses is read as a negative number. A blank or unreadable value counts as 0.
 - **Skipped rows:** rows without a readable Start Time are skipped silently. If a row has no Room ID, the app creates one from the file name and row number.
-- **Freshness:** if a file name contains a `YYYYMMDDHHMMSS` timestamp, that timestamp sets the export's freshness for deduplication. Otherwise the file's modified time is used.
+- **Freshness:** if a file name contains a 14-digit `YYYYMMDDHHMMSS` timestamp starting with `20`, that timestamp sets the export's freshness for deduplication. Otherwise the file's modified time is used.
 
 ## Output
 
@@ -123,7 +132,7 @@ The output is a single `.xlsx` workbook, saved to the path you choose (GUI) or t
 
 | Sheet | Contents |
 |---|---|
-| One per month (for example `January`, or `January 2026` when the data spans more than one year) | A calendar grid with weeks running Monday to Sunday. Each streamer has two columns: GMV and `Hrs`. Each week has a `Week N` row with weekly totals, then one row per day. |
+| One per month (for example `January`, or `January 2026` when the data spans more than one year) | A calendar grid with weeks running Monday to Sunday. Each streamer in the report has two columns: GMV and `Hrs`. Each week has a `Week N` row with weekly totals, then one row per day. The first and last weeks are full weeks, so they include days (and their GMV and hours) from the neighboring month. Those days appear on both month sheets, so don't add month-sheet totals together; use `Combined Data` for exact monthly sums. |
 | `Combined Data` | One row per deduplicated stream, with an autofilter. |
 | `Run Info` | Row count after deduplication, duplicates removed, the duplicate rule, the list of streamers, the hours format and the attribution policy. |
 
@@ -137,7 +146,7 @@ The output is a single `.xlsx` workbook, saved to the path you choose (GUI) or t
 | $4,000 to $9,999.99 | green |
 | $10,000 and above | cyan |
 
-Streamer columns appear in a fixed order: Adam, Austin, Darby, DC, Elly, George, Ryann, Tawna. Any other names follow in alphabetical order.
+Streamer columns follow the fixed order in `PREFERRED_ORDER` in the source. Any other names follow in alphabetical order. Only streamers with at least one assigned stream get columns.
 
 **Combined Data columns.**
 
@@ -153,7 +162,7 @@ Streamer columns appear in a fixed order: Adam, Austin, Darby, DC, Elly, George,
 | Duration (HH:MM) | Stream length in `[hh]:mm` format |
 | Attributed GMV | GMV credited to the stream |
 | Streamer | Assigned streamer name |
-| Assignment Method | How the streamer was assigned. Examples: `auto: title alias`, `auto: explicit host marker`, `manual: table cell edit`, `manual: bulk table assignment` |
+| Assignment Method | How the streamer was assigned: `auto: title alias`, `auto: explicit host marker`, `auto: learned explicit alias`, `auto: direct host phrase`, `manual: table cell edit`, `manual: bulk table assignment`, `manual: copied previous row` / `manual: copied next row`, or `session: room assignment` (a manual choice re-applied after a re-import). A rename adds `+ manual rename/merge`. |
 | Extracted Candidate | The text from the title that triggered an automatic assignment |
 | `Raw: <header>` | Every original column from the TikTok export, so no source data is hidden |
 
@@ -165,9 +174,9 @@ To change the built-in aliases or the streamer column order, edit the `KNOWN_ALI
 
 ## Building the app with PyInstaller
 
-The app was built with PyInstaller as a windowed, one-folder macOS `.app` bundle (`console=False`, UPX enabled, no icon, no bundle identifier, no extra data files or hidden imports). The original spec file isn't in this repository. This command does the same thing:
+The prebuilt app was made with PyInstaller as a windowed macOS `.app` bundle. No spec file is included; this command produces an equivalent build:
 
-```
+```bash
 # macOS
 python3 -m pip install pyinstaller XlsxWriter
 python3 -m PyInstaller --windowed --name "TikTok Streamer Reporter" tiktok_streamer_reporter.py
@@ -178,8 +187,6 @@ py -m PyInstaller --windowed --name "TikTok Streamer Reporter" tiktok_streamer_r
 ```
 
 The output goes to `dist/`. On macOS that's `dist/TikTok Streamer Reporter.app`. On Windows it's `dist\TikTok Streamer Reporter\TikTok Streamer Reporter.exe`.
-
-If you use the original spec file, it points to `TikTok_Streamer_Reporter/tiktok_streamer_reporter.py`, a subfolder path. Edit that path in `Analysis([...])` to match where the script is, then run `pyinstaller "TikTok Streamer Reporter.spec"`.
 
 XlsxWriter must be installed in the same Python environment you build from. If it isn't, the built app can't write reports.
 
@@ -192,11 +199,12 @@ PyInstaller doesn't cross-compile. Build the Windows version on Windows and the 
 | "couldn't find TikTok headers" | The file has no row with `Room ID`, `Room Title` and `Start Time` in its first 100 rows. Re-export the LIVE performance report from TikTok Shop and don't edit the headers. |
 | "unsupported input type" | Only `.csv` and `.xlsx` are supported. Re-save `.xls` files as `.xlsx`. |
 | "not a valid .xlsx file" | The file is damaged or isn't really an XLSX file. Re-download it, or export it as CSV. |
+| "Could not import one or more files" | Every listed file must import, or none are loaded. The message names the failing file; remove it with **Remove Selected** and add a fixed copy. |
 | "No valid TikTok live rows were found" | None of the rows have a Start Time the app can read. Check that the date format is one of those listed under Inputs. |
 | **Generate Excel Report** is greyed out | Some rows still need a streamer. Click **Show Needs Streamer**. |
-| "Missing dependency 'xlsxwriter'" | Run `py -m pip install XlsxWriter` (Windows) or `python3 -m pip install XlsxWriter` (macOS). If you see this in a built app, rebuild it with XlsxWriter installed. |
-| Wrong automatic name | Edit the cell, or use **Rename / Merge Name...** to fix every row with that name. Clearing a cell also overrides the automatic match for the current session. |
-| Two names for one person | Use **Rename / Merge Name...** and enter the name you want to keep. |
+| "Missing dependency 'xlsxwriter'" (CLI) or "This app needs XlsxWriter" (GUI) | Run `py -m pip install XlsxWriter` (Windows) or `python3 -m pip install XlsxWriter` (macOS). If you see this in a built app, rebuild it with XlsxWriter installed. |
+| Wrong automatic name | Edit the cell, or use **Rename / Merge Name...** to fix every row with that name. Clearing a cell also overrides the automatic match for the current session. To fix it permanently, edit `KNOWN_ALIASES` in the source. |
+| Two names for one person | Select a row with the name to replace, click **Rename / Merge Name...**, and enter the name you want to keep. |
 | GMV is lower than expected | The newest export wins for duplicate Room IDs. Check `Source File` in `Combined Data` to see which file each row came from. |
 | macOS says the app is damaged or from an unidentified developer | The app isn't notarized. Right-click it and choose **Open**, or allow it in System Settings > Privacy & Security. |
 | Prebuilt binary won't start on Windows or an Intel Mac | The included binaries are arm64 macOS only. Run from source or build the app on that platform. |
